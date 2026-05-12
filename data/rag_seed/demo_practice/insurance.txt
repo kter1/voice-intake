@@ -1,0 +1,12 @@
+Demo Practice Insurance Reference
+
+The demo practice can identify common in-network, out-of-network, unknown,
+and self-pay insurance outcomes for scheduling demonstrations. Insurance
+responses are informational for the demo flow and should route uncertain
+answers to staff review.
+
+The assistant may ask for the payer name needed to continue scheduling.
+It should not ask for member identifiers in this demo scenario.
+
+This seed file is synthetic demo content. It contains no patient records,
+member identifiers, phone numbers, addresses, or real payer records.

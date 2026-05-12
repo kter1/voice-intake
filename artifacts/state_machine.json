@@ -1,0 +1,84 @@
+{
+  "close": [],
+  "consent_ai_assistance": [
+    "consent_declined",
+    "emergency_exit",
+    "human_takeover",
+    "identity_capture"
+  ],
+  "consent_declined": [
+    "close",
+    "emergency_exit",
+    "human_takeover",
+    "identity_capture",
+    "manual_mode"
+  ],
+  "consent_recording": [
+    "consent_ai_assistance",
+    "consent_declined",
+    "emergency_exit",
+    "human_takeover"
+  ],
+  "demographics": [
+    "emergency_exit",
+    "human_takeover",
+    "insurance",
+    "manual_mode"
+  ],
+  "disposition": [
+    "close",
+    "emergency_exit",
+    "human_takeover"
+  ],
+  "emergency_exit": [
+    "close",
+    "disposition",
+    "human_takeover"
+  ],
+  "human_takeover": [
+    "close",
+    "disposition",
+    "emergency_exit"
+  ],
+  "identity_capture": [
+    "demographics",
+    "emergency_exit",
+    "human_takeover",
+    "manual_mode"
+  ],
+  "insurance": [
+    "emergency_exit",
+    "human_takeover",
+    "manual_mode",
+    "reason_for_visit"
+  ],
+  "manual_mode": [
+    "close",
+    "demographics",
+    "disposition",
+    "emergency_exit",
+    "human_takeover",
+    "identity_capture",
+    "insurance",
+    "readback",
+    "reason_for_visit"
+  ],
+  "opening": [
+    "consent_ai_assistance",
+    "consent_recording",
+    "emergency_exit",
+    "human_takeover"
+  ],
+  "readback": [
+    "disposition",
+    "emergency_exit",
+    "human_takeover",
+    "manual_mode"
+  ],
+  "reason_for_visit": [
+    "emergency_exit",
+    "human_takeover",
+    "manual_mode",
+    "readback"
+  ]
+}
