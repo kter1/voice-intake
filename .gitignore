@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Secrets - never commit these
+.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB persistent store
+chroma_data/
+.chroma-demo/
+uploads/
+
+# macOS
+.DS_Store
+
+# Node / dashboard
+node_modules/
+dashboard/dist/
+dashboard/.vite/
+
+# IDEs
+.idea/
+.vscode/
+
+# AI assistant session data
+.claude/
+
+# Pytest cache
+.pytest_cache/
