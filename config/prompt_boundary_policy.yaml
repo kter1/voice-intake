@@ -1,0 +1,19 @@
+allowed:
+  observability_fields:
+    - session_id
+    - operator_id
+    - event_type
+    - timestamp
+    - environment
+    - error_code
+    - error_codes
+forbidden:
+  patterns:
+    - '\b\d{8,}\b'
+    - '\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?){2}\d{4}\b'
+    - '\b(?:zero|one|two|three|four|five|six|seven|eight|nine)(?:[\s,-]+(?:zero|one|two|three|four|five|six|seven|eight|nine)){6,}\b'
+  field_types:
+    - dob
+    - member_id
+    - callback_number
+    - subscriber_name

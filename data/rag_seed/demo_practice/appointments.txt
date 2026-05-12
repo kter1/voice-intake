@@ -1,0 +1,12 @@
+Demo Practice Appointment Policy
+
+Standard new-patient appointments are scheduled for a single visit slot.
+Follow-up appointments may be scheduled for a shorter visit slot when the
+caller is returning for the same concern.
+
+Callers who need to reschedule should contact the practice before the visit
+window when possible. The intake assistant may collect the reason for visit,
+preferred timing, and insurance carrier before staff review.
+
+This seed file is synthetic demo content. It contains no patient records,
+member identifiers, phone numbers, addresses, or real appointment data.

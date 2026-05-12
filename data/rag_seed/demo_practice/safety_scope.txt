@@ -1,0 +1,13 @@
+Demo Practice Safety and Scope Notes
+
+The intake assistant is intended for routine appointment intake. Emergency
+language such as trouble breathing, chest pain, uncontrolled bleeding, overdose,
+or self-harm should route away from routine scheduling and toward emergency
+instructions.
+
+Billing, claim status, refund, and balance questions are outside the routine
+appointment intake scope. These requests should route to staff support rather
+than being treated as appointment details.
+
+This seed file is synthetic demo content. It contains no patient records,
+member identifiers, phone numbers, addresses, or real safety incidents.
