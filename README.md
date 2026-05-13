@@ -76,7 +76,7 @@ Start with `make demo` or `make demo-local` and open `http://localhost:5173/demo
 
 Responses vary slightly on repeat for LLM-driven turns (scheduling, policy questions). Static opening meta-questions like "Who are you?" or "What can you do?" are answered via deterministic fast path and return the same response each time.
 
-This demo is for portfolio review and local evaluation against synthetic data. It is not evidence of clinical deployment, payer connectivity, regulatory approval, or HIPAA-compliant operation.
+This demo is for portfolio review and local evaluation against synthetic data. It is not evidence of clinical deployment, payer connectivity, or regulatory approval.
 
 ---
 
