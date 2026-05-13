@@ -2,14 +2,24 @@
 
 [![CI](https://github.com/kter1/voice-intake/actions/workflows/ci.yml/badge.svg)](https://github.com/kter1/voice-intake/actions/workflows/ci.yml)
 
-A supervised AI voice intake system for healthcare, demonstrating customer-pilot architecture patterns including protected HTTP and WebSocket surfaces, shared runtime clients, and full-payload audit-chain verification.
+> **Disclaimer:** Portfolio / reference implementation using synthetic demo data.
+> Not a production clinical system. Not a HIPAA-compliant deployment. Not payer-integrated.
+> Not medical advice. See [Out of scope](#out-of-scope) for what this repository does
+> and does not represent.
 
-The system handles inbound calls end-to-end: STIR/SHAKEN attestation, split consent sequencing (recording + AI assistance), state-machine-driven field collection, a reject-only proposal validator that gates every LLM output, an append-only audit chain, real-time supervisor alerts, and a React supervisor dashboard.
+A supervised AI voice intake reference implementation that demonstrates customer-pilot architecture patterns for a healthcare-style scheduling workflow: protected HTTP and WebSocket surfaces, shared runtime clients, deterministic LLM gating, and full-payload audit-chain verification.
 
-> **Portfolio note:** Portfolio reference implementation demonstrating production-architecture
-> and deployment-hardening patterns for a supervised AI voice system. Key areas: HMAC audit chain integrity, API/WebSocket
-> auth, shared runtime lifecycle, state-machine-driven LLM gating, swappable LLM providers
-> (remote and local AI providers), and a React supervisor dashboard. Backend and dashboard test suites pass on every CI run.
+The system illustrates an inbound-call flow end-to-end against synthetic data: STIR/SHAKEN attestation, split consent sequencing (recording + AI assistance), state-machine-driven field collection, a reject-only proposal validator that gates every LLM output, an append-only audit chain, real-time supervisor alerts, and a React supervisor dashboard.
+
+**What this demonstrates**
+
+- HMAC audit chain integrity
+- API and WebSocket auth surfaces
+- Shared runtime lifecycle
+- State-machine-driven LLM gating
+- Swappable LLM providers (remote and local)
+- React supervisor dashboard
+- Backend and dashboard test suites running on every CI push
 
 ---
 
@@ -17,7 +27,7 @@ The system handles inbound calls end-to-end: STIR/SHAKEN attestation, split cons
 
 ### Primary: `make demo` - AI Demo (BYOK OpenAI-compatible remote LLM + seeded RAG)
 
-This is the **primary AI demo path**. It demonstrates how a real AI intake system handles flexible caller input with LLM grounding and safety gates, all running at phone-call pace when configured with a low-latency provider.
+This is the **primary AI demo path**. It demonstrates how a supervised AI intake workflow handles flexible caller input with LLM grounding and safety gates, running at phone-call pace when configured with a low-latency provider. The flow uses synthetic demo data only.
 
 Requires a user-supplied OpenAI-compatible provider key. Some providers may offer no-cost or free-tier options, but terms, billing requirements, model availability, and rate limits must be verified before use.
 
@@ -66,7 +76,7 @@ Start with `make demo` or `make demo-local` and open `http://localhost:5173/demo
 
 Responses vary slightly on repeat for LLM-driven turns (scheduling, policy questions). Static opening meta-questions like "Who are you?" or "What can you do?" are answered via deterministic fast path and return the same response each time.
 
-This demo is for portfolio review and local evaluation. It is not evidence of clinical deployment, payer connectivity, or regulatory approval.
+This demo is for portfolio review and local evaluation against synthetic data. It is not evidence of clinical deployment, payer connectivity, or regulatory approval.
 
 ---
 
@@ -242,24 +252,43 @@ Python 3.13+ and Node 18+ required.
 
 ## Deployment notes
 
+The repository ships pre-configured for local evaluation. The settings below describe how the code is wired for non-mocked operation; they are not a substitute for a real deployment-readiness review.
+
 1. Set `DATABASE_URL` to a PostgreSQL connection string.
 2. Set `CHROMA_PATH` to a persistent directory.
 3. Set `LLM_API_KEY`, `DEEPGRAM_API_KEY`, and `TWILIO_*` credentials.
 4. Set `MOCK_LLM=false` and `MOCK_ASR=false`.
-5. Set `API_KEY`, `STREAM_AUTH_SECRET`, and `AUDIT_HMAC_SECRET` for customer-pilot deployments.
+5. Set `API_KEY`, `STREAM_AUTH_SECRET`, and `AUDIT_HMAC_SECRET` to enable the auth and audit surfaces.
 6. Expose on HTTPS (required for Twilio webhook signature validation).
 7. `uvicorn voice_intake.api.app:app --host 0.0.0.0 --port 8000 --workers 4`
 
 For the dashboard: `npm run build` in `dashboard/`, then serve `dist/` from any static host.
 
+These notes describe the runtime mechanics demonstrated by the repository. They are not a clinical-deployment checklist.
+
+---
+
 ## Customer-pilot architecture patterns
 
-- shared retriever and LLM clients are created once in lifespan instead of per request
+- Shared retriever and LLM clients are created once in lifespan instead of per request
 - HTTP routes require `X-API-Key` when `API_KEY` is set
-- supervisor WebSocket requires `?api_key=...` for the internal dashboard
-- telephony media-stream WebSocket uses short-lived signed tokens instead of an open URL
-- audit events now carry a per-session HMAC chain with `/session/{id}/audit/verify`
+- Supervisor WebSocket requires `?api_key=...` for the internal dashboard
+- Telephony media-stream WebSocket uses short-lived signed tokens instead of an open URL
+- Audit events carry a per-session HMAC chain verifiable via `/session/{id}/audit/verify`
+
+---
 
 ## Out of scope
 
-This project demonstrates customer-pilot architecture patterns, but it is not a complete clinical, HIPAA, or production deployment. A full HIPAA compliance program would additionally require controls such as IAM, encryption-at-rest guarantees, retention/deletion policy enforcement, incident runbooks, and third-party review.
+This project demonstrates customer-pilot architecture patterns against synthetic data. It is **not** any of the following:
+
+- A production clinical or healthcare system
+- A HIPAA-compliant deployment
+- A payer or EHR-integrated product
+- A source of medical advice
+- A regulatory-cleared device or service
+- A tested environment for real Protected Health Information (PHI)
+
+A real clinical deployment would additionally require controls such as IAM, encryption-at-rest guarantees, retention and deletion policy enforcement, vendor BAAs, incident runbooks, formal threat modeling, and independent third-party review. This repository intentionally does not attempt to make those claims.
+
+All seeded RAG content, fixtures, and demo flows use synthetic data. Do not submit real patient information, credentials, recordings, or other sensitive data when evaluating this project. See [SECURITY.md](SECURITY.md) for the security policy.
