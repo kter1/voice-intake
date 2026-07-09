@@ -58,6 +58,10 @@ def build_model_prompt(
         }
         for candidate in field_candidates
     ]
+    # Candidate-value redaction only: in-process deterministic consumers
+    # (DemoRouter field extraction, safety prerouter) need the raw spans.
+    # PHI span redaction for text leaving the process happens at the LLM
+    # boundary in llm/common.sanitize_prompt, applied to every turn.
     recent_context = [
         {
             "speaker": turn.speaker.value,

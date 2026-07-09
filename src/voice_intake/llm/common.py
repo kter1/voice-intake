@@ -6,6 +6,7 @@ import re
 from typing import Literal
 
 from voice_intake.models import CallState
+from voice_intake.normalization import DIGIT_BLOCK_RE, DOB_RE, PHONE_RE
 
 PromptProfile = Literal["default", "demo", "recruiter_demo"]
 
@@ -57,6 +58,17 @@ _INJECTION_PATTERNS = [
     r"###\s*(Instruction|System|Human|Assistant)",
 ]
 
+# PHI spans are redacted here - at the boundary where text leaves the process
+# for a model provider - not in build_model_prompt, whose output is also
+# consumed by in-process deterministic components (DemoRouter field
+# extraction) that need the raw spans. Order matters: phone numbers first so
+# separator-free ones aren't half-consumed as generic digit blocks.
+_PHI_SPAN_PATTERNS = (
+    ("CALLBACK_NUMBER", PHONE_RE),
+    ("DOB", DOB_RE),
+    ("MEMBER_ID", DIGIT_BLOCK_RE),
+)
+
 OAI_PROPOSE_TOOL = {
     "type": "function",
     "function": {
@@ -105,6 +117,8 @@ OAI_PROPOSE_TOOL = {
 def _sanitize_for_llm(text: str) -> str:
     for pattern in _INJECTION_PATTERNS:
         text = re.sub(pattern, "[REDACTED]", text)
+    for label, phi_pattern in _PHI_SPAN_PATTERNS:
+        text = phi_pattern.sub(f"[{label}]", text)
     return text
 
 

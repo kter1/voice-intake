@@ -7,8 +7,10 @@ INSTEAD of the approved template content. Any failure silently falls back to
 the template text; it never rejects the proposal itself.
 
 This is demo-grade screening for the synthetic portfolio demo (length bounds,
-unmasked digit-run detection, markup stripping, clinical-language deny list).
-A production healthcare deployment would require a reviewed guard policy.
+unmasked digit-run detection, markup rejection, clinical-language deny list).
+It does NOT detect names, addresses, or other non-numeric PHI, and the deny
+list is a small keyword set, not clinical NLP. A production healthcare
+deployment would require a reviewed guard policy.
 """
 
 from __future__ import annotations
