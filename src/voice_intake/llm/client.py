@@ -81,6 +81,7 @@ class LLMClient:
                 variables=args.get("variables", {}),
                 requested_transition=coerce_transition(args.get("requested_transition")),
                 model_version=self._model,
+                spoken_text=str(args["spoken_response"]) if args.get("spoken_response") else None,
             )
 
         try:

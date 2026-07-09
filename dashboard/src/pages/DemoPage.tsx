@@ -264,10 +264,12 @@ export function DemoPage() {
       setSession((prev) => prev ? { ...prev, current_state: result.current_state } : prev);
 
       if (result.voice_action) {
-        const aiText = renderTemplate(
-          result.voice_action.template_id,
-          result.voice_action.allowed_variables,
-        );
+        // Guard-approved natural phrasing wins; template content is the fallback.
+        const aiText = result.voice_action.spoken_text ||
+          renderTemplate(
+            result.voice_action.template_id,
+            result.voice_action.allowed_variables,
+          );
         addMessage({ role: "ai", text: aiText, state: result.current_state });
       } else if (result.rejection) {
         // Provide humane rejection message instead of raw technical copy

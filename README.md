@@ -52,7 +52,9 @@ The demo starts the backend on `:8000` and the dashboard on `:5173`. Open **http
 
 > **What the demo does:** Run a real LLM with the demo prompt profile. Responses are generated through the LLM path and constrained by deterministic validation. The assistant is grounded in the seeded demo practice-policy corpus for questions about scheduling, insurance, and scope. ASR, eligibility, patient lookup, and Twilio validation remain mocked for local evaluation.
 
-> **No scripted behavior:** `make demo` does not use `DemoRouter` or `MOCK_LLM`. If the LLM times out, the session escalates to human takeover through timeout handling.
+> **Natural-language responses (demo profile):** In the demo policy profile, the LLM may propose a short conversational phrasing (`spoken_response`) alongside its template selection. A deterministic, reject-only speech guard (length bounds, unmasked-digit detection, markup rejection, clinical-language deny list) decides whether that phrasing is spoken; on any guard failure the approved template text is used instead. The template/validator gate on state transitions is unchanged, the guard outcome is recorded in the audit trail, and the default profile (telephony and any non-demo deployment) remains template-only. The guard is demo-grade screening, not a reviewed clinical-safety control.
+
+> **No scripted behavior:** `make demo` does not use `DemoRouter` or `MOCK_LLM`. In the demo profile, the first consecutive LLM timeout plays a brief hold message and retries on the caller's next utterance; a second consecutive timeout escalates to human takeover. The default profile escalates immediately. Worst-case dead air per turn is bounded by `LLM_TIMEOUT_SECONDS` × (`LLM_MAX_RETRIES` + 1); set `LLM_MAX_RETRIES=1` for phone-pace demos.
 
 > **Demo policy:** The demo forces `POLICY_PROFILE=demo`, which skips recording and AI-assistance consent gates because this portfolio demo is not actually recording calls. The default policy (used by telephony and any non-demo deployment) still requires both consents.
 

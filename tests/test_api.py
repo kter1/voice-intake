@@ -838,5 +838,122 @@ def test_llm_prompt_includes_conversation_history(monkeypatch):
     assert "second utterance" in transcripts[-1]
 
 
+def _spoken_text_proposal_factory(spoken_text):
+    from voice_intake.models import CallState, ModelProposal
+    from uuid import uuid4
+
+    async def _fake(
+        prompt,
+        source_turn_id,
+        settings,
+        llm_client,
+        demo_router=None,
+        safety_pre_router=None,
+        proposal_id=None,
+    ):
+        return ModelProposal(
+            proposal_id=proposal_id or str(uuid4()),
+            source_turn_id=source_turn_id,
+            template_id="appointment_reason_prompt",
+            variables={},
+            requested_transition=CallState.REASON_FOR_VISIT,
+            model_version="fake",
+            spoken_text=spoken_text,
+        )
+
+    return _fake
+
+
+def test_demo_profile_spoken_text_passes_guard_and_is_returned(monkeypatch):
+    """Demo profile: guard-approved spoken_text reaches the API response."""
+    import voice_intake.api.routers.turns as turns_module
+
+    monkeypatch.setattr(
+        turns_module,
+        "propose_next_action",
+        _spoken_text_proposal_factory(
+            "Happy to help with scheduling. What is the reason for the visit?"
+        ),
+    )
+    app, store = _make_test_app_with_settings(_demo_profile_settings())
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.post("/session/open", json={
+        "telephony_call_id": "call-spoken", "operator_id": "op-1",
+    })
+    session_id = resp.json()["session_id"]
+
+    data = client.post(f"/session/{session_id}/turn", json={
+        "transcript": "hi, my knee has been bothering me",
+    }).json()
+    assert data["current_state"] == "reason_for_visit"
+    assert data["voice_action"]["template_id"] == "appointment_reason_prompt"
+    assert data["voice_action"]["spoken_text"] == (
+        "Happy to help with scheduling. What is the reason for the visit?"
+    )
+
+
+def test_demo_profile_guarded_spoken_text_falls_back_to_template(monkeypatch):
+    """Guard rejection (clinical language) drops spoken_text but keeps the
+    accepted template action."""
+    import voice_intake.api.routers.turns as turns_module
+
+    monkeypatch.setattr(
+        turns_module,
+        "propose_next_action",
+        _spoken_text_proposal_factory("That sounds like a diagnosis of arthritis."),
+    )
+    app, store = _make_test_app_with_settings(_demo_profile_settings())
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.post("/session/open", json={
+        "telephony_call_id": "call-guarded", "operator_id": "op-1",
+    })
+    session_id = resp.json()["session_id"]
+
+    data = client.post(f"/session/{session_id}/turn", json={
+        "transcript": "my knee hurts",
+    }).json()
+    assert data["current_state"] == "reason_for_visit"
+    assert data["voice_action"]["template_id"] == "appointment_reason_prompt"
+    assert data["voice_action"]["spoken_text"] is None
+
+
+def test_default_profile_never_emits_spoken_text(monkeypatch):
+    """Default profile: spoken_text is gated off entirely, even when the model
+    provides an innocuous one."""
+    import voice_intake.api.routers.turns as turns_module
+    from voice_intake.models import CallState, ModelProposal
+    from uuid import uuid4
+
+    async def _fake(
+        prompt,
+        source_turn_id,
+        settings,
+        llm_client,
+        demo_router=None,
+        safety_pre_router=None,
+        proposal_id=None,
+    ):
+        return ModelProposal(
+            proposal_id=proposal_id or str(uuid4()),
+            source_turn_id=source_turn_id,
+            template_id="collect_field_prompt",
+            variables={"field_label": "date of birth"},
+            requested_transition=CallState.DEMOGRAPHICS,
+            model_version="fake",
+            spoken_text="Sure, could you share your date of birth?",
+        )
+
+    monkeypatch.setattr(turns_module, "propose_next_action", _fake)
+    app, store = _make_test_app()
+    client = TestClient(app, raise_server_exceptions=True)
+    session_id = _open_session_with_both_consents(client)
+
+    data = client.post(f"/session/{session_id}/turn", json={
+        "transcript": "my name is on file already",
+    }).json()
+    assert data["voice_action"]["template_id"] == "collect_field_prompt"
+    assert data["voice_action"]["spoken_text"] is None
+
+
 if __name__ == "__main__":
     unittest.main()
