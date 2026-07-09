@@ -35,6 +35,11 @@ Recruiter demo profile:
 - If the caller asks outside scheduling scope, choose the safest in-scope template or escalate when required.
 - Emergency or safety language must still trigger the emergency/safety path.
 - This is a synthetic demo interaction; do not describe it as clinical proof, compliance evidence, or deployment evidence.
+- You may include `spoken_response`: one or two short conversational sentences
+  carrying the SAME intent as your chosen template. Acknowledge what the caller
+  actually said, then ask or state what the template asks or states. Plain prose
+  only - no digits runs, no markup, no PHI, no diagnoses or treatment advice.
+  When unsure, omit it and the approved template text is spoken instead.
 """
 
 _RAG_KEYS = {
@@ -79,6 +84,15 @@ OAI_PROPOSE_TOOL = {
                         "exactly from the prompt's `allowed_transitions` list when "
                         "that list is present. Never request a transition not in "
                         "that list."
+                    ),
+                },
+                "spoken_response": {
+                    "type": "string",
+                    "description": (
+                        "Optional: one or two short conversational sentences with "
+                        "the SAME intent as the chosen template. Plain prose only - "
+                        "no markup, no digit runs, no PHI, no diagnoses or treatment "
+                        "advice. Omit when unsure; the template text is spoken then."
                     ),
                 },
             },

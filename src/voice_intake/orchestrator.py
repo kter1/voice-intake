@@ -28,6 +28,7 @@ from .policy import (
     resolve_consent_capture,
     resolve_entry_state,
 )
+from .speech_guard import guard_spoken_text
 from .validator import ProposalValidator, ValidationOutcome
 
 
@@ -167,12 +168,20 @@ class VoiceIntakeOrchestrator:
         state_key = (session.session_id, session.current_state.value)
         self._reject_counts.pop(state_key, None)
         session.current_state = proposal.requested_transition
+        # Natural-language phrasing is spoken only in the demo profile and only
+        # when it passes the deterministic speech guard; otherwise the approved
+        # template content is rendered exactly as before.
+        spoken_text: str | None = None
+        spoken_guard = "disabled"
+        if self.policy_profile.policy_profile_id == "demo":
+            spoken_text, spoken_guard = guard_spoken_text(proposal.spoken_text)
         action = VoiceAction(
             action_type="speak_template",
             template_id=proposal.template_id,
             allowed_variables=proposal.variables,
             interruptible=bool(outcome.template and outcome.template.interruptible),
             timeout_ms=3000,
+            spoken_text=spoken_text,
         )
         self.audit_store.record_audit_event(
             AuditEvent(
@@ -191,6 +200,10 @@ class VoiceIntakeOrchestrator:
                 model_version=proposal.model_version,
                 service_path="model->validator->policy->tts",
                 before_after_hash=f"accepted->{proposal.requested_transition.value}",
+                details={
+                    "spoken_text_guard": spoken_guard,
+                    "spoken_text": spoken_text or "",
+                },
             )
         )
         return outcome, action
