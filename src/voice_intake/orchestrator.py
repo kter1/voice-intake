@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -200,9 +201,16 @@ class VoiceIntakeOrchestrator:
                 model_version=proposal.model_version,
                 service_path="model->validator->policy->tts",
                 before_after_hash=f"accepted->{proposal.requested_transition.value}",
+                # The spoken text itself is never persisted - only its hash, so
+                # what was spoken can be verified against the chain without
+                # storing free-form model output alongside PHI-bearing turns.
                 details={
                     "spoken_text_guard": spoken_guard,
-                    "spoken_text": spoken_text or "",
+                    "spoken_text_sha256": (
+                        hashlib.sha256(spoken_text.encode()).hexdigest()
+                        if spoken_text
+                        else ""
+                    ),
                 },
             )
         )
