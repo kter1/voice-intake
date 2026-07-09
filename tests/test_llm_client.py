@@ -518,6 +518,53 @@ class LLMClientChatCompletionsPathTest(unittest.TestCase):
         self.assertEqual(client_gemini._chat_completions_path, "/chat/completions")
 
 
+class LLMClientSpokenResponseTest(unittest.TestCase):
+    """The optional spoken_response tool argument maps to proposal.spoken_text."""
+
+    def _propose_with_args(self, extra_args: dict):
+        from unittest.mock import patch
+        from voice_intake.llm.client import LLMClient
+
+        args = {
+            "template_id": "opening_disclosure",
+            "variables": {},
+            "requested_transition": "opening",
+            **extra_args,
+        }
+        body = {
+            "choices": [{
+                "message": {
+                    "tool_calls": [{
+                        "function": {"arguments": json.dumps(args)}
+                    }]
+                }
+            }]
+        }
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json.return_value = body
+
+        client = LLMClient(base_url="https://api.example.com", model="test-model")
+        with patch.object(client._client, "post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = response
+            return _run(client.propose(
+                {"session_id": "s-1", "current_state": "opening", "recent_turns": []},
+                "turn-1",
+            ))
+
+    def test_spoken_response_parsed(self):
+        proposal = self._propose_with_args(
+            {"spoken_response": "Hi there! I can help with scheduling."}
+        )
+        self.assertIsNotNone(proposal)
+        self.assertEqual(proposal.spoken_text, "Hi there! I can help with scheduling.")
+
+    def test_missing_spoken_response_is_none(self):
+        proposal = self._propose_with_args({})
+        self.assertIsNotNone(proposal)
+        self.assertIsNone(proposal.spoken_text)
+
+
 class LLMClientMaxRetriesTest(unittest.TestCase):
     """LLM_MAX_RETRIES must actually bound retry attempts (was hardcoded to 3)."""
 

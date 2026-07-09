@@ -16,6 +16,9 @@ class VoiceActionSchema(BaseModel):
     allowed_variables: dict[str, str]
     interruptible: bool
     timeout_ms: int
+    # Guard-approved natural phrasing (demo profile only). Clients speak this
+    # when present and fall back to rendering template_id otherwise.
+    spoken_text: str | None = None
 
 
 class RejectionSchema(BaseModel):

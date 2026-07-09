@@ -206,6 +206,10 @@ class ModelProposal:
     requested_transition: CallState
     model_version: str
     session_id: str | None = None
+    # Optional model-authored natural phrasing of the template's intent.
+    # Spoken only if it passes the deterministic speech guard (demo profile);
+    # otherwise the approved template content is used. Never persisted raw.
+    spoken_text: str | None = None
 
 
 @dataclass(slots=True)
@@ -290,6 +294,9 @@ class VoiceAction:
     allowed_variables: dict[str, str]
     interruptible: bool
     timeout_ms: int
+    # Guard-approved natural phrasing to speak instead of the template content.
+    # None means: render the template content as before.
+    spoken_text: str | None = None
 
 
 # ── Appointment scheduling (demo flow) ────────────────────────────────────────

@@ -12,6 +12,9 @@ export interface TurnResponse {
     allowed_variables: Record<string, string>;
     interruptible: boolean;
     timeout_ms: number;
+    // Guard-approved natural phrasing (demo profile). Preferred over the
+    // template content when present.
+    spoken_text?: string | null;
   } | null;
   rejection: { reason: string } | null;
 }

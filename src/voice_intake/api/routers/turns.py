@@ -332,6 +332,7 @@ async def submit_turn(
             allowed_variables=action.allowed_variables,
             interruptible=action.interruptible,
             timeout_ms=action.timeout_ms,
+            spoken_text=action.spoken_text,
         )
     else:
         reason = (
