@@ -52,6 +52,7 @@ def _build_llm_client(settings: Settings) -> LLMClient | OllamaClient | None:
             settings.ollama_base_url,
             settings.ollama_model,
             settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
         )
     # remote - only build if base_url and model are configured
     if not settings.llm_base_url or not settings.llm_model:
@@ -62,6 +63,7 @@ def _build_llm_client(settings: Settings) -> LLMClient | OllamaClient | None:
         api_key=settings.llm_api_key,
         timeout=settings.llm_timeout_seconds,
         chat_completions_path=settings.llm_chat_completions_path,
+        max_retries=settings.llm_max_retries,
     )
 
 

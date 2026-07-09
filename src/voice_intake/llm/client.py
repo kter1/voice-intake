@@ -35,12 +35,14 @@ class LLMClient:
         timeout: float = 30.0,
         prompt_profile: PromptProfile | str | None = None,
         chat_completions_path: str = "/v1/chat/completions",
+        max_retries: int = 3,
     ) -> None:
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._client = httpx.AsyncClient(base_url=base_url, headers=headers, timeout=timeout)
         self._model = model
         self._prompt_profile = prompt_profile or os.getenv("LLM_PROMPT_PROFILE", "default")
         self._chat_completions_path = chat_completions_path
+        self._max_retries = max_retries
 
     async def propose(
         self,
@@ -82,7 +84,9 @@ class LLMClient:
             )
 
         try:
-            return await with_exponential_backoff(_call, max_retries=3, base_delay=0.5)
+            return await with_exponential_backoff(
+                _call, max_retries=self._max_retries, base_delay=0.5
+            )
         except (
             httpx.TimeoutException,
             httpx.ConnectError,

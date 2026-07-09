@@ -179,9 +179,13 @@ async def submit_turn(
         rag_end = time.perf_counter()
 
         prompt_start = time.perf_counter()
+        # Conversation history: pass the last few caller turns so the model can
+        # adjust to what was already said, not just the current utterance. The
+        # current turn was recorded above, so it is the final entry.
+        history = sorted(store.turns_for_session(session_id), key=lambda t: t.start_ts)
         prompt = build_model_prompt(
             session,
-            [turn],
+            history[-4:] if history else [turn],
             candidates,
             available_templates,
             knowledge_chunks=knowledge_chunks,
@@ -204,11 +208,44 @@ async def submit_turn(
         llm_end = time.perf_counter()
 
     if proposal is None:
+        validation_start = validation_start or time.perf_counter()
+        validation_end = validation_end or time.perf_counter()
+
+        # Demo profile: the first consecutive timeout emits hold_message and keeps
+        # the session alive, so the caller's next utterance retries the LLM. A
+        # second consecutive timeout escalates below. The default profile (used by
+        # telephony and non-demo deployments) keeps the immediate-takeover posture.
+        timeout_count = int(session.metadata.get("consecutive_llm_timeouts", 0)) + 1
+        session.metadata["consecutive_llm_timeouts"] = timeout_count
+        if orchestrator.policy_profile.policy_profile_id == "demo" and timeout_count < 2:
+            hold_action = orchestrator.handle_model_timeout_grace(session)
+            persistence_start = time.perf_counter()
+            store.save_session(session, reject_counts=orchestrator._reject_counts)
+            persistence_end = time.perf_counter()
+
+            total_ms = (time.perf_counter() - turn_start) * 1000
+            logger.info(
+                f"turn_latency session_id={session_id} turn_id={turn_id} "
+                f"state={session.current_state.value} total_turn_ms={total_ms:.1f} "
+                f"model_version=unknown proposal_status=timeout_grace"
+            )
+            return TurnResponse(
+                session_id=session_id,
+                turn_id=turn_id,
+                current_state=session.current_state.value,
+                voice_action=VoiceActionSchema(
+                    action_type=hold_action.action_type,
+                    template_id=hold_action.template_id,
+                    allowed_variables=hold_action.allowed_variables,
+                    interruptible=hold_action.interruptible,
+                    timeout_ms=hold_action.timeout_ms,
+                ),
+                rejection=None,
+            )
+
         # LLM timeout escalates to HUMAN_TAKEOVER. handle_model_timeout() sets
         # current_state=HUMAN_TAKEOVER, mode=HUMAN_TAKEOVER, and records a chained
         # MODEL_TIMEOUT audit event.
-        validation_start = validation_start or time.perf_counter()
-        validation_end = validation_end or time.perf_counter()
         orchestrator.handle_model_timeout(session, buffered_audio_ref=None)
         persistence_start = persistence_start or time.perf_counter()
         store.save_session(session, reject_counts=orchestrator._reject_counts)
@@ -251,6 +288,9 @@ async def submit_turn(
         )
 
     validation_start = time.perf_counter()
+    # The model responded: clear the consecutive-timeout counter used by the
+    # demo grace path above.
+    session.metadata.pop("consecutive_llm_timeouts", None)
     outcome, action = orchestrator.handle_model_proposal(session, proposal)
     validation_end = time.perf_counter()
 
