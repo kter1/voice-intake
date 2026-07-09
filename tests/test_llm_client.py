@@ -518,6 +518,64 @@ class LLMClientChatCompletionsPathTest(unittest.TestCase):
         self.assertEqual(client_gemini._chat_completions_path, "/chat/completions")
 
 
+class LlmBoundaryPhiRedactionTest(unittest.TestCase):
+    """PHI spans must be redacted from every turn transcript at the point text
+    leaves the process for a model provider - including conversation-history
+    turns whose values are absent from the current turn's field candidates."""
+
+    def test_prior_turn_phi_redacted_in_user_message(self):
+        from voice_intake.llm.common import build_user_message
+
+        prompt = {
+            "session_id": "s-1",
+            "current_state": "demographics",
+            "recent_turns": [
+                {
+                    "speaker": "caller",
+                    "transcript": (
+                        "My date of birth is 03/14/1985 and my phone is 555-123-4567"
+                    ),
+                },
+                {"speaker": "caller", "transcript": "Yes that is correct"},
+            ],
+        }
+        user_content = build_user_message(prompt)
+        self.assertNotIn("03/14/1985", user_content)
+        self.assertNotIn("555-123-4567", user_content)
+        self.assertIn("[DOB]", user_content)
+        self.assertIn("[CALLBACK_NUMBER]", user_content)
+
+    def test_digit_block_redacted_in_user_message(self):
+        from voice_intake.llm.common import build_user_message
+
+        prompt = {
+            "session_id": "s-1",
+            "current_state": "insurance",
+            "recent_turns": [
+                {"speaker": "caller", "transcript": "My member ID is 123456789"},
+            ],
+        }
+        user_content = build_user_message(prompt)
+        self.assertNotIn("123456789", user_content)
+
+    def test_prompt_dict_keeps_raw_spans_for_in_process_consumers(self):
+        """sanitize happens on a deep copy: DemoRouter still sees raw values."""
+        from voice_intake.llm.common import build_user_message
+
+        prompt = {
+            "session_id": "s-1",
+            "current_state": "demographics",
+            "recent_turns": [
+                {"speaker": "caller", "transcript": "My date of birth is 03/14/1985"},
+            ],
+        }
+        build_user_message(prompt)
+        self.assertEqual(
+            prompt["recent_turns"][0]["transcript"],
+            "My date of birth is 03/14/1985",
+        )
+
+
 class LLMClientSpokenResponseTest(unittest.TestCase):
     """The optional spoken_response tool argument maps to proposal.spoken_text."""
 

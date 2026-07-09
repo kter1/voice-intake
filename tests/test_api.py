@@ -891,6 +891,18 @@ def test_demo_profile_spoken_text_passes_guard_and_is_returned(monkeypatch):
         "Happy to help with scheduling. What is the reason for the visit?"
     )
 
+    # Audit trail records the guard outcome and a hash - never the raw text.
+    import hashlib
+    events = store.audit_events_for_session(session_id)
+    emitted = [e for e in events if e.event_type.value == "voice_action_emitted"]
+    assert emitted, "expected a VOICE_ACTION_EMITTED event"
+    details = emitted[-1].details
+    assert details["spoken_text_guard"] == "accepted"
+    assert "spoken_text" not in details
+    assert details["spoken_text_sha256"] == hashlib.sha256(
+        b"Happy to help with scheduling. What is the reason for the visit?"
+    ).hexdigest()
+
 
 def test_demo_profile_guarded_spoken_text_falls_back_to_template(monkeypatch):
     """Guard rejection (clinical language) drops spoken_text but keeps the
