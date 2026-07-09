@@ -688,5 +688,155 @@ class PolicyProfileApiTest(unittest.TestCase):
         self.assertEqual(resp.json()["current_state"], "consent_recording")
 
 
+def _demo_profile_settings() -> Settings:
+    return Settings(
+        database_url="sqlite:///:memory:",
+        mock_llm=True,
+        mock_asr=True,
+        mock_rag=True,
+        audit_hmac_secret="test-audit-secret",
+        stream_auth_secret="test-stream-secret",
+        policy_profile="demo",
+    )
+
+
+def test_demo_profile_first_timeout_holds_then_second_escalates(monkeypatch):
+    """Demo profile: first LLM timeout emits hold_message and keeps the session
+    alive; a second consecutive timeout escalates to HUMAN_TAKEOVER."""
+    import voice_intake.api.routers.turns as turns_module
+
+    async def _fake_timeout(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(turns_module, "propose_next_action", _fake_timeout)
+
+    app, store = _make_test_app_with_settings(_demo_profile_settings())
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.post("/session/open", json={
+        "telephony_call_id": "call-grace", "operator_id": "op-1",
+    })
+    session_id = resp.json()["session_id"]
+    assert resp.json()["current_state"] == "opening"
+
+    resp1 = client.post(f"/session/{session_id}/turn", json={
+        "transcript": "purple elephant unmatched input",
+    })
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["current_state"] == "opening"  # not escalated
+    assert data1.get("rejection") is None
+    assert data1["voice_action"]["template_id"] == "hold_message"
+
+    resp2 = client.post(f"/session/{session_id}/turn", json={
+        "transcript": "purple elephant again",
+    })
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["current_state"] == "human_takeover"
+    assert data2["rejection"]["reason"] == "llm_timeout"
+
+
+def test_demo_profile_timeout_counter_resets_after_success(monkeypatch):
+    """A successful proposal between timeouts resets the consecutive-timeout
+    counter, so the next timeout gets the grace path again."""
+    import voice_intake.api.routers.turns as turns_module
+    from voice_intake.models import CallState, ModelProposal
+    from uuid import uuid4
+
+    behaviors = ["timeout", "success", "timeout"]
+
+    async def _fake(
+        prompt,
+        source_turn_id,
+        settings,
+        llm_client,
+        demo_router=None,
+        safety_pre_router=None,
+        proposal_id=None,
+    ):
+        behavior = behaviors.pop(0)
+        if behavior == "timeout":
+            return None
+        return ModelProposal(
+            proposal_id=proposal_id or str(uuid4()),
+            source_turn_id=source_turn_id,
+            template_id="appointment_reason_prompt",
+            variables={},
+            requested_transition=CallState.REASON_FOR_VISIT,
+            model_version="fake",
+        )
+
+    monkeypatch.setattr(turns_module, "propose_next_action", _fake)
+
+    app, store = _make_test_app_with_settings(_demo_profile_settings())
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.post("/session/open", json={
+        "telephony_call_id": "call-reset", "operator_id": "op-1",
+    })
+    session_id = resp.json()["session_id"]
+
+    resp1 = client.post(f"/session/{session_id}/turn", json={"transcript": "one"})
+    assert resp1.json()["voice_action"]["template_id"] == "hold_message"
+    assert resp1.json()["current_state"] == "opening"
+
+    resp2 = client.post(f"/session/{session_id}/turn", json={"transcript": "two"})
+    assert resp2.json()["current_state"] == "reason_for_visit"
+    assert resp2.json().get("rejection") is None
+
+    # Counter reset by the success above: this timeout gets grace, not takeover.
+    resp3 = client.post(f"/session/{session_id}/turn", json={"transcript": "three"})
+    assert resp3.json()["voice_action"]["template_id"] == "hold_message"
+    assert resp3.json()["current_state"] == "reason_for_visit"
+
+
+def test_llm_prompt_includes_conversation_history(monkeypatch):
+    """The prompt passed to the LLM must include prior caller turns, with the
+    current utterance last."""
+    import voice_intake.api.routers.turns as turns_module
+    from voice_intake.models import CallState, ModelProposal
+    from uuid import uuid4
+
+    captured = []
+    transitions = [CallState.DEMOGRAPHICS, CallState.INSURANCE]
+
+    async def _fake(
+        prompt,
+        source_turn_id,
+        settings,
+        llm_client,
+        demo_router=None,
+        safety_pre_router=None,
+        proposal_id=None,
+    ):
+        captured.append(prompt)
+        return ModelProposal(
+            proposal_id=proposal_id or str(uuid4()),
+            source_turn_id=source_turn_id,
+            template_id="collect_field_prompt",
+            variables={"field_label": "date of birth"},
+            requested_transition=transitions.pop(0),
+            model_version="fake",
+        )
+
+    monkeypatch.setattr(turns_module, "propose_next_action", _fake)
+
+    app, store = _make_test_app()
+    client = TestClient(app, raise_server_exceptions=True)
+    session_id = _open_session_with_both_consents(client)
+
+    client.post(f"/session/{session_id}/turn", json={
+        "transcript": "purple elephant first utterance",
+    })
+    client.post(f"/session/{session_id}/turn", json={
+        "transcript": "purple elephant second utterance",
+    })
+
+    assert len(captured) == 2
+    transcripts = [t["transcript"] for t in captured[1]["recent_turns"]]
+    assert len(transcripts) >= 2
+    assert any("first utterance" in t for t in transcripts)
+    assert "second utterance" in transcripts[-1]
+
+
 if __name__ == "__main__":
     unittest.main()

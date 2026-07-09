@@ -235,6 +235,39 @@ class VoiceIntakeOrchestrator:
             session.mode = CallMode.HUMAN_TAKEOVER
         return None
 
+    def handle_model_timeout_grace(self, session: CallSession) -> VoiceAction:
+        """Record a model timeout without escalating.
+
+        Emits the hold_message fallback so the caller's next utterance retries
+        the LLM. State and mode are unchanged; escalation on repeated timeouts
+        stays with handle_model_timeout.
+        """
+        self.audit_store.record_audit_event(
+            AuditEvent(
+                event_id=_new_id(),
+                session_id=session.session_id,
+                actor=AuditActor.SYSTEM,
+                event_type=AuditEventType.MODEL_TIMEOUT,
+                proposal_id=None,
+                validator_result_id=None,
+                affected_fields=[],
+                identity_state=IdentityState.UNVERIFIED,
+                policy_decision_id=None,
+                template_id="hold_message",
+                model_version=None,
+                service_path="orchestrator->tts",
+                before_after_hash="model_timeout_grace",
+                details={"grace": True},
+            )
+        )
+        return VoiceAction(
+            action_type="speak_template",
+            template_id="hold_message",
+            allowed_variables={},
+            interruptible=True,
+            timeout_ms=3000,
+        )
+
     def handle_model_timeout(self, session: CallSession, buffered_audio_ref: str | None) -> None:
         session.current_state = CallState.HUMAN_TAKEOVER
         session.mode = CallMode.HUMAN_TAKEOVER

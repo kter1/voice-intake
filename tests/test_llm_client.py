@@ -518,5 +518,73 @@ class LLMClientChatCompletionsPathTest(unittest.TestCase):
         self.assertEqual(client_gemini._chat_completions_path, "/chat/completions")
 
 
+class LLMClientMaxRetriesTest(unittest.TestCase):
+    """LLM_MAX_RETRIES must actually bound retry attempts (was hardcoded to 3)."""
+
+    def test_default_max_retries_is_three(self):
+        from voice_intake.llm.client import LLMClient
+
+        client = LLMClient(base_url="https://api.example.com", model="test-model")
+        self.assertEqual(client._max_retries, 3)
+
+    def test_custom_max_retries_stored(self):
+        from voice_intake.llm.client import LLMClient
+
+        client = LLMClient(
+            base_url="https://api.example.com", model="test-model", max_retries=1
+        )
+        self.assertEqual(client._max_retries, 1)
+
+    def test_max_retries_bounds_attempts(self):
+        """max_retries=1 means exactly 2 attempts (initial + one retry) on timeout."""
+        from unittest.mock import patch
+        from voice_intake.llm.client import LLMClient
+
+        client = LLMClient(
+            base_url="https://api.example.com", model="test-model", max_retries=1
+        )
+        with patch.object(client._client, "post", new_callable=AsyncMock) as mock_post:
+            mock_post.side_effect = httpx.TimeoutException("simulated timeout")
+            result = _run(client.propose(
+                {"session_id": "s-1", "current_state": "opening", "recent_turns": []},
+                "turn-1",
+            ))
+        self.assertIsNone(result)
+        self.assertEqual(mock_post.call_count, 2)
+
+    def test_ollama_client_max_retries_stored(self):
+        from voice_intake.llm.ollama_client import OllamaClient
+
+        client = OllamaClient(
+            base_url="http://localhost:11434", model="llama3.1:8b", max_retries=2
+        )
+        self.assertEqual(client._max_retries, 2)
+
+    def test_build_llm_client_passes_max_retries_from_settings(self):
+        from voice_intake.api.app import _build_llm_client
+        from voice_intake.config import Settings
+
+        settings = Settings(
+            mock_llm=False,
+            llm_provider="remote",
+            llm_base_url="https://api.example.com",
+            llm_model="test-model",
+            llm_api_key="test-key",
+            llm_max_retries=1,
+        )
+        client = _build_llm_client(settings)
+        self.assertIsNotNone(client)
+        self.assertEqual(client._max_retries, 1)
+
+        settings_ollama = Settings(
+            mock_llm=False,
+            llm_provider="ollama",
+            llm_max_retries=2,
+        )
+        client_ollama = _build_llm_client(settings_ollama)
+        self.assertIsNotNone(client_ollama)
+        self.assertEqual(client_ollama._max_retries, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

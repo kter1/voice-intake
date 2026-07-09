@@ -107,10 +107,12 @@ class OllamaClient:
         model: str,
         timeout: float = 30.0,
         prompt_profile: PromptProfile | str | None = None,
+        max_retries: int = 3,
     ) -> None:
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
         self._model = model
         self._prompt_profile = prompt_profile or os.getenv("LLM_PROMPT_PROFILE", "default")
+        self._max_retries = max_retries
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -162,7 +164,9 @@ class OllamaClient:
             )
 
         try:
-            return await with_exponential_backoff(_call, max_retries=3, base_delay=0.5)
+            return await with_exponential_backoff(
+                _call, max_retries=self._max_retries, base_delay=0.5
+            )
         except (
             httpx.TimeoutException,
             httpx.ConnectError,
