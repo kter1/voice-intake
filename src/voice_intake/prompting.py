@@ -67,7 +67,7 @@ def build_model_prompt(
             "speaker": turn.speaker.value,
             "transcript": _redact_text(turn.transcript, field_candidates),
         }
-        for turn in recent_turns[-4:]
+        for turn in recent_turns[-6:]
     ]
     prompt: dict[str, object] = {
         "session_id": session.session_id,

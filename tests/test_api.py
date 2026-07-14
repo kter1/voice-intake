@@ -193,8 +193,9 @@ class TurnApiTest(unittest.TestCase):
             "transcript": "My name is Jane Doe",
         })
         turns = self.store.turns_for_session(self.session_id)
-        self.assertEqual(len(turns), 1)
-        self.assertEqual(turns[0].transcript, "My name is Jane Doe")
+        caller_turns = [t for t in turns if t.speaker.value == "caller"]
+        self.assertEqual(len(caller_turns), 1)
+        self.assertEqual(caller_turns[0].transcript, "My name is Jane Doe")
 
     def test_turn_on_nonexistent_session_returns_404(self):
         resp = self.client.post("/session/bad-id/turn", json={"transcript": "hello"})
@@ -832,10 +833,16 @@ def test_llm_prompt_includes_conversation_history(monkeypatch):
     })
 
     assert len(captured) == 2
-    transcripts = [t["transcript"] for t in captured[1]["recent_turns"]]
+    recent = captured[1]["recent_turns"]
+    transcripts = [t["transcript"] for t in recent]
     assert len(transcripts) >= 2
     assert any("first utterance" in t for t in transcripts)
     assert "second utterance" in transcripts[-1]
+    # The AI's own utterance from turn 1 must be in the history too, so the
+    # model knows what it already asked.
+    ai_turns = [t for t in recent if t["speaker"] == "ai"]
+    assert ai_turns, "expected the AI's prior utterance in conversation history"
+    assert "date of birth" in ai_turns[0]["transcript"]
 
 
 def _spoken_text_proposal_factory(spoken_text):

@@ -41,6 +41,50 @@ def _new_id() -> str:
     return str(uuid4())
 
 
+def _record_ai_turn(
+    store: SQLAuditStore,
+    session_id: str,
+    template_bundle,
+    template_id: str,
+    variables: dict[str, str],
+    spoken_text: str | None,
+) -> None:
+    """Persist what the AI said as a Speaker.AI turn.
+
+    Without this, conversation history carries only the caller's side and the
+    model cannot recall what it already asked. The recorded text is exactly
+    what the client renders: guard-approved spoken_text when present,
+    otherwise the template content with variables substituted.
+    """
+    text = spoken_text or ""
+    if not text:
+        template = template_bundle.template_for(template_id)
+        if template is None:
+            return
+        text = template.content
+        for key, val in (variables or {}).items():
+            text = text.replace(f"{{{{{key}}}}}", str(val))
+    text = text.strip()
+    if not text:
+        return
+    ts = utc_now()
+    store.record_turn(
+        session_id,
+        VoiceTurn(
+            turn_id=_new_id(),
+            speaker=Speaker.AI,
+            audio_ref=None,
+            retention_policy_id="standard",
+            transcript=text,
+            partial_or_final="final",
+            asr_confidence=1.0,
+            barge_in=False,
+            start_ts=ts,
+            end_ts=ts,
+        ),
+    )
+
+
 def _build_turn(body: TurnRequest, turn_id: str) -> VoiceTurn:
     ts = utc_now()
     return VoiceTurn(
@@ -179,13 +223,14 @@ async def submit_turn(
         rag_end = time.perf_counter()
 
         prompt_start = time.perf_counter()
-        # Conversation history: pass the last few caller turns so the model can
-        # adjust to what was already said, not just the current utterance. The
-        # current turn was recorded above, so it is the final entry.
+        # Conversation history: pass the last few turns - both the caller's and
+        # the AI's own recorded utterances - so the model can adjust to what was
+        # already said and asked. The current turn was recorded above, so it is
+        # the final entry.
         history = sorted(store.turns_for_session(session_id), key=lambda t: t.start_ts)
         prompt = build_model_prompt(
             session,
-            history[-4:] if history else [turn],
+            history[-6:] if history else [turn],
             candidates,
             available_templates,
             knowledge_chunks=knowledge_chunks,
@@ -219,6 +264,14 @@ async def submit_turn(
         session.metadata["consecutive_llm_timeouts"] = timeout_count
         if orchestrator.policy_profile.policy_profile_id == "demo" and timeout_count < 2:
             hold_action = orchestrator.handle_model_timeout_grace(session)
+            _record_ai_turn(
+                store,
+                session_id,
+                orchestrator.validator.template_bundle,
+                hold_action.template_id,
+                hold_action.allowed_variables,
+                None,
+            )
             persistence_start = time.perf_counter()
             store.save_session(session, reject_counts=orchestrator._reject_counts)
             persistence_end = time.perf_counter()
@@ -326,6 +379,14 @@ async def submit_turn(
     voice_action = None
     rejection = None
     if action is not None:
+        _record_ai_turn(
+            store,
+            session_id,
+            orchestrator.validator.template_bundle,
+            action.template_id,
+            action.allowed_variables,
+            action.spoken_text,
+        )
         voice_action = VoiceActionSchema(
             action_type=action.action_type,
             template_id=action.template_id,
