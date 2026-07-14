@@ -85,6 +85,15 @@ function renderTemplate(templateId: string, variables: Record<string, string>): 
   return text;
 }
 
+// Browser TTS for AI replies. Feature-detected: no-op where speechSynthesis
+// is unavailable (older browsers, jsdom in tests). Cancels any in-flight
+// utterance first so rapid turns don't overlap.
+function speakAloud(text: string, enabled: boolean): void {
+  if (!enabled || typeof window === "undefined" || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
 interface Message {
   id: string;
   role: "caller" | "ai" | "system";
@@ -191,6 +200,7 @@ export function DemoPage() {
   const [error, setError] = useState<string | null>(null);
   const [appointment, setAppointment] = useState<AppointmentRequest | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
+  const [voiceOn, setVoiceOn] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasStarted = useRef(false);
   const sessionRequestId = useRef(0);
@@ -271,6 +281,7 @@ export function DemoPage() {
             result.voice_action.allowed_variables,
           );
         addMessage({ role: "ai", text: aiText, state: result.current_state });
+        speakAloud(aiText, voiceOn);
       } else if (result.rejection) {
         // Provide humane rejection message instead of raw technical copy
         const rejectionMessages: Record<string, string> = {
@@ -287,6 +298,7 @@ export function DemoPage() {
           text: rejectionText,
           state: result.current_state,
         });
+        speakAloud(rejectionText, voiceOn);
       }
 
       // Refresh appointment panel after every turn
@@ -310,13 +322,27 @@ export function DemoPage() {
           </Link>
           <h1 className="text-lg font-semibold text-gray-800">Voice Intake Demo</h1>
         </div>
-        <button
-          onClick={startSession}
-          disabled={loading}
-          className="text-sm text-gray-500 hover:text-gray-700 border rounded px-3 py-1 disabled:opacity-40"
-        >
-          Reset
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setVoiceOn((v) => {
+                if (v) window.speechSynthesis?.cancel();
+                return !v;
+              });
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700 border rounded px-3 py-1"
+            title="Toggle spoken responses"
+          >
+            {voiceOn ? "🔊 Voice on" : "🔇 Voice off"}
+          </button>
+          <button
+            onClick={startSession}
+            disabled={loading}
+            className="text-sm text-gray-500 hover:text-gray-700 border rounded px-3 py-1 disabled:opacity-40"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 max-w-4xl mx-auto w-full gap-4 p-4">
